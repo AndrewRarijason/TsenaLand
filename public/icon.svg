@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#0d3b2c"/>
+  <rect x="56" y="56" width="400" height="400" rx="28" fill="#cde6d0" stroke="#1f2937" stroke-width="10"/>
+  <rect x="56" y="56" width="400" height="70" fill="#ED1B24" stroke="#1f2937" stroke-width="10"/>
+  <g transform="rotate(-10 256 290)">
+    <rect x="96" y="206" width="320" height="150" fill="#c8102e" stroke="#ffffff" stroke-width="12"/>
+    <text x="256" y="290" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="66" fill="#ffffff">MG</text>
+    <rect x="186" y="314" width="46" height="22" fill="#ffffff"/>
+    <rect x="232" y="314" width="94" height="11" fill="#fc3d32"/>
+    <rect x="232" y="325" width="94" height="11" fill="#007e3a"/>
+  </g>
+</svg>
