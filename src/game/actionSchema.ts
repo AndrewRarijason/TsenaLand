@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { NAME_MAX_LENGTH } from "./constants";
+import { TOKEN_IDS } from "./tokens";
 import type { GameAction } from "./types";
+
+export const tokenSchema = z.enum(TOKEN_IDS);
 
 const tileId = z.number().int().min(0).max(39);
 const offer = z.object({
@@ -11,6 +14,7 @@ const offer = z.object({
 
 export const actionSchema: z.ZodType<GameAction> = z.discriminatedUnion("type", [
   z.object({ type: z.literal("start") }),
+  z.object({ type: z.literal("chooseToken"), token: tokenSchema }),
   z.object({ type: z.literal("roll") }),
   z.object({ type: z.literal("payJail") }),
   z.object({ type: z.literal("useJailCard") }),

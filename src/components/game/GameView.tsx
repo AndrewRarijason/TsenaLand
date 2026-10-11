@@ -1,11 +1,15 @@
 "use client";
 
-import { findPlayer } from "@/game/rules";
+import { currentPlayer, findPlayer } from "@/game/rules";
 import type { GameAction, GameState } from "@/game/types";
+import { usePlayback } from "@/lib/client/playback";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { TokenBadge } from "../tokens";
 import { Board } from "./Board";
-import { AssetsModal, AuctionModal, CardModal, PropertyModal, TradeModal, WinnerModal } from "./modals";
+import { CardModal } from "./CardModal";
+import { AssetsModal, AuctionModal, PropertyModal, TradeModal } from "./modals";
 import { ActionPanel, LogPanel, PlayersPanel, TradesPanel } from "./panels";
+import { WinnerModal } from "./WinnerModal";
 
 export interface GameViewProps {
   state: GameState;
@@ -35,21 +39,28 @@ export function GameView({ state, controlled, send, now, online, mode, header, o
   const [tradeOpen, setTradeOpen] = useState(false);
   const [zoom, setZoom] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [seenCard, setSeenCard] = useState(state.card?.seq ?? 0);
+  const [sending, setSending] = useState(false);
 
-  const actorId = useMemo(() => pickActor(state, controlled), [state, controlled]);
-  const actor = findPlayer(state, actorId);
+  // L'écran affiche `view` : l'état précédent tant que l'animation du coup n'est pas finie.
+  const pb = usePlayback(state, controlled);
+  const view = pb.view;
+  const busy = sending || pb.busy;
+
+  const actorId = useMemo(() => pickActor(view, controlled), [view, controlled]);
+  const actor = findPlayer(view, actorId);
+  const cur = view.status === "playing" ? currentPlayer(view) : null;
+  const highlightId = mode === "online" ? (controlled[0] ?? null) : (cur?.id ?? null);
+  const highlightLabel = mode === "online" ? "VOUS" : (cur?.name ?? "");
 
   const run = useCallback(
     async (action: GameAction, asId?: string) => {
-      setBusy(true);
+      setSending(true);
       try {
         await send(action, asId ?? actorId);
       } catch (e) {
         setToast(e instanceof Error ? e.message : "Action impossible.");
       } finally {
-        setBusy(false);
+        setSending(false);
       }
     },
     [send, actorId],
@@ -61,16 +72,23 @@ export function GameView({ state, controlled, send, now, online, mode, header, o
     return () => clearTimeout(id);
   }, [toast]);
 
-  const card = state.card && state.card.seq > seenCard ? state.card : null;
-  const closeCard = useCallback(() => setSeenCard(state.card?.seq ?? 0), [state.card?.seq]);
-
   return (
     <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-3 px-2 pb-6 pt-2 lg:px-4 lg:pt-4">
       {header}
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start">
         <div className="board-wrap lg:sticky lg:top-4">
           <div className={`board-scroller${zoom ? " zoomed" : ""}`}>
-            <Board state={state} onTileClick={setTileId} />
+            <Board
+              state={view}
+              positions={pb.positions}
+              movingId={pb.movingId}
+              jumpingId={pb.jumpingId}
+              dice={pb.dice}
+              diceKey={pb.diceKey}
+              highlightId={highlightId}
+              highlightLabel={highlightLabel}
+              onTileClick={setTileId}
+            />
           </div>
           <div className="mt-2 flex justify-end lg:hidden">
             <button
@@ -86,33 +104,52 @@ export function GameView({ state, controlled, send, now, online, mode, header, o
         <aside className="flex w-full flex-col gap-3 lg:w-[400px] lg:shrink-0">
           {actor && (
             <ActionPanel
-              state={state}
+              state={view}
               actorId={actorId}
               run={run}
               busy={busy}
+              animating={pb.busy}
               mode={mode}
               onAssets={() => setAssetsOpen(true)}
               onTrade={() => setTradeOpen(true)}
             />
           )}
-          <TradesPanel state={state} controlled={controlled} run={run} busy={busy} />
-          <PlayersPanel state={state} online={online} meIds={controlled} />
-          <LogPanel state={state} />
+          <TradesPanel state={view} controlled={controlled} run={run} busy={busy} />
+          <PlayersPanel state={view} online={online} meIds={controlled} mode={mode} />
+          <LogPanel state={view} />
         </aside>
       </div>
 
-      <PropertyModal state={state} tileId={tileId} actorId={actorId} run={run} busy={busy} onClose={() => setTileId(null)} />
-      <AssetsModal state={state} actorId={actorId} open={assetsOpen} run={run} busy={busy} onClose={() => setAssetsOpen(false)} />
-      <TradeModal state={state} actorId={actorId} open={tradeOpen} run={run} busy={busy} onClose={() => setTradeOpen(false)} />
-      <AuctionModal state={state} controlled={controlled} run={run} busy={busy} now={now} />
-      <CardModal card={card} state={state} onClose={closeCard} />
-      <WinnerModal state={state} onNewGame={onNewGame} />
+      <PropertyModal state={view} tileId={tileId} actorId={actorId} run={run} busy={busy} onClose={() => setTileId(null)} />
+      <AssetsModal state={view} actorId={actorId} open={assetsOpen} run={run} busy={busy} onClose={() => setAssetsOpen(false)} />
+      <TradeModal state={view} actorId={actorId} open={tradeOpen} run={run} busy={busy} onClose={() => setTradeOpen(false)} />
+      {!pb.busy && <AuctionModal state={view} controlled={controlled} run={run} busy={busy} now={now} />}
+      <CardModal prompt={pb.card} state={view} onOpen={pb.openCard} onClose={pb.closeCard} />
+      {!pb.busy && <WinnerModal state={view} onNewGame={onNewGame} />}
+      {cur && !pb.busy && <TurnBanner key={`${view.turn}-${cur.id}`} state={view} mine={mode === "online" && cur.id === controlled[0]} />}
 
       {toast && (
-        <div className="pop fixed inset-x-3 top-3 z-[60] mx-auto max-w-md rounded-2xl bg-slate-900 px-4 py-3 text-center text-sm font-semibold text-white shadow-2xl">
+        <div className="toast-in fixed inset-x-3 top-3 z-[60] mx-auto flex max-w-md items-center gap-2 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-2xl ring-1 ring-white/10">
+          <span className="text-lg">⚠️</span>
           {toast}
         </div>
       )}
+    </div>
+  );
+}
+
+/** Bandeau éphémère au changement de tour. */
+function TurnBanner({ state, mine }: { state: GameState; mine: boolean }) {
+  const cur = currentPlayer(state);
+  return (
+    <div className="turn-banner pointer-events-none fixed inset-x-0 top-[18%] z-40 flex justify-center px-4" aria-live="polite">
+      <div
+        className={`flex items-center gap-3 rounded-full py-2.5 pl-2.5 pr-6 text-white shadow-2xl ring-4 ring-white/70 ${mine ? "text-lg" : "text-base"}`}
+        style={{ background: `linear-gradient(135deg, ${cur.color}, #0f172a)` }}
+      >
+        <TokenBadge token={cur.token} color={cur.color} size={mine ? 44 : 36} />
+        <span className="font-black tracking-wide">{mine ? "À vous de jouer !" : `Au tour de ${cur.name}`}</span>
+      </div>
     </div>
   );
 }

@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useState } from "react";
+
 const PIPS: Record<number, number[]> = {
   1: [4],
   2: [0, 8],
@@ -19,12 +21,36 @@ function Die({ value, rolling }: { value: number; rolling: boolean }) {
   );
 }
 
-export function Dice({ values, seq }: { values: [number, number]; seq: number }) {
-  // La clé change à chaque lancer : l'animation rejoue.
+const face = () => 1 + Math.floor(Math.random() * 6);
+
+/** Les faces défilent pendant le lancer, puis s'arrêtent sur le résultat. */
+function RollingDice({ values, animate }: { values: [number, number]; animate: boolean }) {
+  const [faces, setFaces] = useState<[number, number] | null>(null);
+
+  useEffect(() => {
+    if (!animate) return;
+    const tick = setInterval(() => setFaces([face(), face()]), 70);
+    const stop = setTimeout(() => {
+      clearInterval(tick);
+      setFaces(null);
+    }, 560);
+    return () => {
+      clearInterval(tick);
+      clearTimeout(stop);
+    };
+  }, [animate]);
+
+  const shown = faces ?? values;
+  const rolling = faces !== null;
   return (
-    <div className="flex gap-[2cqw]" key={seq}>
-      <Die value={values[0]} rolling />
-      <Die value={values[1]} rolling />
+    <div className={`dice-pair${values[0] === values[1] && !rolling && animate ? " double" : ""}`}>
+      <Die value={shown[0]} rolling={rolling} />
+      <Die value={shown[1]} rolling={rolling} />
     </div>
   );
+}
+
+export function Dice({ values, rollKey }: { values: [number, number]; rollKey: number }) {
+  // La clé change à chaque lancer : l'animation rejoue.
+  return <RollingDice key={rollKey} values={values} animate={rollKey > 0} />;
 }

@@ -1,7 +1,9 @@
 "use client";
 
+import { TokenBadge } from "@/components/tokens";
 import { Button } from "@/components/ui";
 import { MAX_PLAYERS, NAME_MAX_LENGTH } from "@/game/constants";
+import { TOKENS } from "@/game/tokens";
 import { api } from "@/lib/client/api";
 import { usePlayerName } from "@/lib/client/playerName";
 import { isOnlineConfigured } from "@/lib/client/supabase";
@@ -43,9 +45,16 @@ export default function Home() {
           <div className="text-lg font-black tracking-[0.6em]">GASY</div>
         </div>
         <p className="mt-6 text-sm font-medium text-emerald-50/90">Le Monopoly des rues d&apos;Antananarivo, en ligne.</p>
+        <div className="mt-4 flex justify-center gap-1.5" aria-hidden>
+          {TOKENS.map((t, i) => (
+            <span key={t.id} className="token-selected" style={{ animationDelay: `${i * 70}ms`, animationFillMode: "both" }}>
+              <TokenBadge token={t.id} color={t.color} size={30} />
+            </span>
+          ))}
+        </div>
       </div>
 
-      <section className="w-full rounded-3xl bg-white/95 p-5 shadow-2xl">
+      <section className="pop w-full rounded-3xl bg-white p-5 shadow-2xl">
         <label className="block text-sm font-semibold text-slate-700">
           Votre pseudo
           <input

@@ -44,7 +44,8 @@ async function request<T>(path: string, method: "GET" | "POST", body?: unknown, 
 export const api = {
   createGame: (name: string) => request<{ code: string }>("/api/games", "POST", { name }),
   getGame: (code: string) => request<StatePayload>(`/api/games/${code}`, "GET"),
-  joinGame: (code: string, name: string) => request<StatePayload>(`/api/games/${code}/join`, "POST", { name }),
+  joinGame: (code: string, name: string, token?: string) =>
+    request<StatePayload>(`/api/games/${code}/join`, "POST", { name, token }),
   action: (code: string, action: GameAction) => request<StatePayload>(`/api/games/${code}/action`, "POST", { action }),
   timeouts: (code: string) => request<StatePayload>(`/api/games/${code}/timeouts`, "POST", {}),
 };

@@ -1,11 +1,9 @@
 "use client";
 
 import { BOARD, GROUP_COLORS, isBuyable } from "@/game/board";
-import { CARDS, DECK_LABEL } from "@/game/cards";
 import { money } from "@/game/format";
 import { activePlayers, findPlayer, netWorth, ownedTiles, rentOf, tradeTileError } from "@/game/rules";
-import type { CardShown, GameState, TradeOffer } from "@/game/types";
-import Link from "next/link";
+import type { GameState, TradeOffer } from "@/game/types";
 import { useEffect, useState } from "react";
 import { Button, Modal, PlayerChip } from "../ui";
 import { PropertyActions, type Run } from "./PropertyActions";
@@ -174,7 +172,7 @@ function TradeForm({ state, actorId, run, busy, onClose }: TradeModalProps) {
             >
               {partners.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.token} {p.name}
+                  {p.name}
                 </option>
               ))}
             </select>
@@ -391,65 +389,3 @@ export function AuctionModal({
   );
 }
 
-// ------------------------------------------------------------ Carte tirée
-
-export function CardModal({ card, state, onClose }: { card: CardShown | null; state: GameState; onClose: () => void }) {
-  useEffect(() => {
-    if (!card) return;
-    const id = setTimeout(onClose, 9000);
-    return () => clearTimeout(id);
-  }, [card, onClose]);
-  if (!card) return null;
-  const def = CARDS[card.cardId];
-  const who = findPlayer(state, card.playerId);
-  const chance = card.deck === "chance";
-  return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/50 p-4" onClick={onClose}>
-      <div
-        className={`pop w-full max-w-sm rounded-3xl border-4 border-white p-6 text-center shadow-2xl ${chance ? "bg-[#f97316]" : "bg-[#7dd3fc]"}`}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="text-xs font-bold uppercase tracking-[0.3em] text-slate-900/70">{who?.name} tire une carte</div>
-        <div className="mt-1 text-2xl font-black uppercase text-slate-900">{DECK_LABEL[card.deck]}</div>
-        <div className="my-4 text-5xl">{chance ? "❓" : "🧰"}</div>
-        <p className="rounded-2xl bg-white/90 p-4 text-base font-semibold leading-snug text-slate-900">{def.text}</p>
-        <Button className="mt-4 w-full" variant="secondary" onClick={onClose}>
-          OK
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-// ------------------------------------------------------------ Fin de partie
-
-export function WinnerModal({ state, onNewGame }: { state: GameState; onNewGame?: () => void }) {
-  const [open, setOpen] = useState(true);
-  if (state.status !== "finished" || !open) return null;
-  const winner = state.winnerId ? findPlayer(state, state.winnerId) : null;
-  return (
-    <Modal open onClose={() => setOpen(false)} title="Fin de la partie">
-      <div className="py-4 text-center">
-        <div className="text-6xl">🏆</div>
-        {winner && (
-          <p className="mt-3 text-xl font-black text-slate-900">
-            {winner.token} {winner.name} remporte la partie avec {money(winner.cash)} !
-          </p>
-        )}
-      </div>
-      <div className="flex flex-col gap-2 sm:flex-row">
-        {onNewGame && (
-          <Button className="flex-1" onClick={onNewGame}>
-            Nouvelle partie
-          </Button>
-        )}
-        <Link
-          href="/"
-          className="inline-flex flex-1 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 hover:bg-slate-50"
-        >
-          Retour à l&apos;accueil
-        </Link>
-      </div>
-    </Modal>
-  );
-}

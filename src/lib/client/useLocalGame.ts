@@ -48,10 +48,10 @@ export function useLocalGame() {
   }, []);
 
   const start = useCallback(
-    (names: string[]) => {
-      let s = createGame({ id: "j1", name: names[0] });
-      names.slice(1).forEach((name, i) => {
-        s = addPlayer(s, { id: `j${i + 2}`, name });
+    (players: { name: string; token: string }[]) => {
+      let s = createGame({ id: "j1", ...players[0] });
+      players.slice(1).forEach((p, i) => {
+        s = addPlayer(s, { id: `j${i + 2}`, ...p });
       });
       commit(applyAction(s, "j1", { type: "start" }, ctx()));
     },

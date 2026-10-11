@@ -6,6 +6,8 @@ ordinateur comme sur mobile.
 
 - **En ligne** : 2 à 6 joueurs, un code ou un lien d'invitation, pas d'inscription (pseudo seulement).
 - **En local** : plusieurs joueurs sur le même appareil, sans connexion ni base de données.
+- **Pions au choix** (voiture, chien, bateau, char, chapeau, botte, chat, brouette), déplacement animé case
+  par case, cartes Chance / Caisse de communauté à ouvrir, confirmations avant hypothèque.
 
 Stack : Next.js 16 (App Router, TypeScript, Tailwind) · Supabase (Postgres, Realtime, Auth anonyme, pg_cron) · Vercel.
 
@@ -87,7 +89,9 @@ Commandes utiles : `npm test` (tests du moteur de jeu), `npm run lint`, `npm run
 | Noms des rues / quartiers | `src/game/board.ts` (les cartes reprennent automatiquement les nouveaux noms) |
 | Textes des cartes Chance / Caisse de communauté | `src/game/cards.ts` |
 | Argent de départ, monnaie, nombre de joueurs, délais | `src/game/constants.ts` |
+| Pions (nom, couleur) | `src/game/tokens.ts` (dessins : `src/components/tokens.tsx`) |
 | Illustrations (taxi-brousse, Jirama…) | `src/components/icons.tsx` |
+| Vitesse des animations | `src/lib/client/playback.ts` (`STEP_MS`, `DICE_MS`) |
 
 Les noms de rues ont été vérifiés sur OpenStreetMap ; vérifiez-les aussi sur Google Maps si besoin.
 

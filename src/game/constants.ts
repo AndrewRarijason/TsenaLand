@@ -27,11 +27,3 @@ export const HEARTBEAT_MS = 60_000;
 export const LOG_LIMIT = 80;
 export const NAME_MAX_LENGTH = 16;
 
-export const PLAYER_STYLES = [
-  { token: "🚗", color: "#dc2626" },
-  { token: "🎩", color: "#2563eb" },
-  { token: "🐕", color: "#16a34a" },
-  { token: "🚢", color: "#9333ea" },
-  { token: "👢", color: "#ea580c" },
-  { token: "🐈", color: "#0891b2" },
-] as const;

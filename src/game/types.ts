@@ -24,6 +24,8 @@ export interface Tile {
   id: number;
   kind: TileKind;
   name: string;
+  /** Libellé court affiché sur la case (sinon dérivé du nom). */
+  short?: string;
   /** Quartier (affiché sur le titre de propriété). */
   district?: string;
   group?: ColorGroup;
@@ -41,6 +43,7 @@ export type DeckName = "chance" | "community";
 export interface Player {
   id: string;
   name: string;
+  /** Identifiant du pion (voir tokens.ts). */
   token: string;
   color: string;
   cash: number;
@@ -110,12 +113,18 @@ export interface LogEntry {
   text: string;
 }
 
-export interface CardShown {
-  seq: number;
-  deck: DeckName;
-  cardId: number;
-  playerId: string;
-}
+/**
+ * Ce qui s'est passé pendant un coup, dans l'ordre : le navigateur s'en sert pour
+ * rejouer l'animation (dés, déplacement case par case, carte tirée).
+ */
+export type GameEvent =
+  | { seq: number; kind: "roll"; playerId: string; dice: [number, number] }
+  | { seq: number; kind: "move"; playerId: string; from: number; to: number; mode: "forward" | "backward" | "jump" }
+  | { seq: number; kind: "card"; playerId: string; deck: DeckName; cardId: number };
+
+type WithoutSeq<E> = E extends GameEvent ? Omit<E, "seq"> : never;
+/** Événement sans numéro (le moteur l'attribue). */
+export type NewGameEvent = WithoutSeq<GameEvent>;
 
 export interface GameState {
   version: number;
@@ -138,8 +147,8 @@ export interface GameState {
   afterDebts: Continuation | null;
   auction: Auction | null;
   trades: Trade[];
-  card: CardShown | null;
-  cardSeq: number;
+  events: GameEvent[];
+  eventSeq: number;
   log: LogEntry[];
   logSeq: number;
   winnerId: string | null;
@@ -148,6 +157,7 @@ export interface GameState {
 
 export type GameAction =
   | { type: "start" }
+  | { type: "chooseToken"; token: string }
   | { type: "roll" }
   | { type: "payJail" }
   | { type: "useJailCard" }

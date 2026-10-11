@@ -74,7 +74,7 @@ describe("loyers", () => {
     s.props[1].owner = "b";
     s.props[3].owner = "b";
     P(s, "a").position = 0;
-    s = act(s, "a", { type: "roll" }, dice(1, 2)); // Rue Pasteur Rahajason, loyer 4 x2
+    s = act(s, "a", { type: "roll" }, dice(1, 2)); // Rue Andriba, loyer 4 x2
     expect(P(s, "a").cash).toBe(START_CASH - 8);
     expect(P(s, "b").cash).toBe(START_CASH + 8);
   });
@@ -297,5 +297,50 @@ describe("déconnexion", () => {
     s = eliminatePlayer(s, "c", "C est déconnecté.", ctx0);
     expect(s.status).toBe("finished");
     expect(s.winnerId).toBe("b");
+  });
+});
+
+describe("pions", () => {
+  it("chaque joueur choisit un pion libre dans le salon", () => {
+    let s = createGame({ id: "a", name: "A", token: "dog" });
+    s = addPlayer(s, { id: "b", name: "B", token: "dog" }); // déjà pris : pion libre attribué
+    expect(P(s, "a").token).toBe("dog");
+    expect(P(s, "b").token).not.toBe("dog");
+    s = act(s, "b", { type: "chooseToken", token: "tank" });
+    expect(P(s, "b").token).toBe("tank");
+    expect(P(s, "b").color).toBe("#4d7c0f");
+    expect(() => act(s, "b", { type: "chooseToken", token: "dog" })).toThrow("déjà pris");
+    s = act(s, "a", { type: "start" });
+    expect(() => act(s, "a", { type: "chooseToken", token: "cat" })).toThrow();
+  });
+});
+
+describe("événements pour l'animation", () => {
+  it("enregistre le lancer puis le déplacement case par case", () => {
+    let s = setup();
+    s = act(s, "a", { type: "roll" }, dice(1, 2));
+    const fresh = s.events.slice(-2);
+    expect(fresh[0]).toMatchObject({ kind: "roll", playerId: "a", dice: [1, 2] });
+    expect(fresh[1]).toMatchObject({ kind: "move", playerId: "a", from: 0, to: 3, mode: "forward" });
+    expect(fresh[1].seq).toBe(s.eventSeq);
+  });
+
+  it("la case « Allez à Tsiafahy » enchaîne marche puis saut", () => {
+    let s = setup();
+    P(s, "a").position = 27;
+    s = act(s, "a", { type: "roll" }, dice(1, 2));
+    const moves = s.events.filter((e) => e.kind === "move").slice(-2);
+    expect(moves[0]).toMatchObject({ from: 27, to: 30, mode: "forward" });
+    expect(moves[1]).toMatchObject({ from: 30, to: 10, mode: "jump" });
+  });
+
+  it("une carte apparaît entre les déplacements", () => {
+    let s = setup();
+    const goTo39 = CARDS.find((c) => c.effect.kind === "advance" && c.effect.to === 39)!;
+    s.decks.chance = [goTo39.id, ...s.decks.chance.filter((id) => id !== goTo39.id)];
+    s = act(s, "a", { type: "roll" }, dice(3, 4)); // case 7 : Chance
+    const kinds = s.events.slice(-4).map((e) => e.kind);
+    expect(kinds).toEqual(["roll", "move", "card", "move"]);
+    expect(P(s, "a").position).toBe(39);
   });
 });

@@ -2,6 +2,7 @@ import { BOARD, isBuyable } from "./board";
 import { CARDS, DECK_LABEL, deckCardIds, jailFreeCardId } from "./cards";
 import * as C from "./constants";
 import { money } from "./format";
+import { tokenInfo, TOKENS } from "./tokens";
 import {
   activePlayers,
   buildError,
@@ -23,6 +24,7 @@ import type {
   DeckName,
   GameAction,
   GameState,
+  NewGameEvent,
   Player,
   Trade,
   TradeOffer,
@@ -58,6 +60,12 @@ function log(s: GameState, text: string) {
   if (s.log.length > C.LOG_LIMIT) s.log.splice(0, s.log.length - C.LOG_LIMIT);
 }
 
+function pushEvent(s: GameState, e: NewGameEvent) {
+  s.eventSeq += 1;
+  s.events.push({ ...e, seq: s.eventSeq } as GameState["events"][number]);
+  if (s.events.length > 40) s.events.splice(0, s.events.length - 40);
+}
+
 function shuffle<T>(items: T[], rng: () => number): T[] {
   const a = [...items];
   for (let i = a.length - 1; i > 0; i--) {
@@ -73,7 +81,13 @@ function getPlayer(s: GameState, id: string): Player {
 
 // ---------------------------------------------------------------- Salon
 
-export function createGame(host: { id: string; name: string }): GameState {
+interface NewPlayer {
+  id: string;
+  name: string;
+  token?: string;
+}
+
+export function createGame(host: NewPlayer): GameState {
   const s: GameState = {
     version: 0,
     status: "lobby",
@@ -93,8 +107,8 @@ export function createGame(host: { id: string; name: string }): GameState {
     afterDebts: null,
     auction: null,
     trades: [],
-    card: null,
-    cardSeq: 0,
+    events: [],
+    eventSeq: 0,
     log: [],
     logSeq: 0,
     winnerId: null,
@@ -105,13 +119,14 @@ export function createGame(host: { id: string; name: string }): GameState {
   return s;
 }
 
-function pushPlayer(s: GameState, p: { id: string; name: string }) {
+function pushPlayer(s: GameState, p: NewPlayer) {
   const used = new Set(s.players.map((x) => x.token));
-  const style = C.PLAYER_STYLES.find((st) => !used.has(st.token)) ?? C.PLAYER_STYLES[0];
+  const wanted = p.token ? tokenInfo(p.token) : undefined;
+  const style = wanted && !used.has(wanted.id) ? wanted : (TOKENS.find((t) => !used.has(t.id)) ?? TOKENS[0]);
   s.players.push({
     id: p.id,
     name: p.name,
-    token: style.token,
+    token: style.id,
     color: style.color,
     cash: C.START_CASH,
     position: 0,
@@ -123,7 +138,7 @@ function pushPlayer(s: GameState, p: { id: string; name: string }) {
   log(s, `${p.name} rejoint la partie.`);
 }
 
-export function addPlayer(state: GameState, p: { id: string; name: string }): GameState {
+export function addPlayer(state: GameState, p: NewPlayer): GameState {
   if (state.status !== "lobby") fail("La partie a déjà commencé.");
   if (state.players.some((x) => x.id === p.id)) return state;
   if (state.players.length >= C.MAX_PLAYERS) fail(`La partie est complète (${C.MAX_PLAYERS} joueurs maximum).`);
@@ -182,8 +197,21 @@ export function toPublicState(state: GameState): GameState {
 
 export function applyAction(state: GameState, actorId: string, action: GameAction, ctx: EngineContext): GameState {
   const s = clone(state);
+  // Parties créées avant l'ajout des événements.
+  s.events ??= [];
+  s.eventSeq ??= 0;
   const actor = getPlayer(s, actorId);
 
+  if (action.type === "chooseToken") {
+    if (s.status !== "lobby") fail("Le pion se choisit avant le début de la partie.");
+    const info = tokenInfo(action.token) ?? fail("Pion inconnu.");
+    const owner = s.players.find((p) => p.token === info.id && p.id !== actorId);
+    if (owner) fail(`Ce pion est déjà pris par ${owner.name}.`);
+    actor.token = info.id;
+    actor.color = info.color;
+    s.version += 1;
+    return s;
+  }
   if (action.type === "start") {
     startGame(s, actorId, ctx);
     s.version += 1;
@@ -425,6 +453,7 @@ function roll(s: GameState, p: Player, ctx: EngineContext) {
   const isDouble = d1 === d2;
   s.dice = [d1, d2];
   s.rollSeq += 1;
+  pushEvent(s, { kind: "roll", playerId: p.id, dice: [d1, d2] });
   log(s, `${p.name} lance les dés : ${d1} + ${d2} = ${total}${isDouble ? " (double !)" : ""}.`);
 
   if (p.inJail) {
@@ -472,17 +501,31 @@ function moveBy(s: GameState, p: Player, steps: number) {
     log(s, `${p.name} passe par la case Départ et reçoit ${money(C.GO_SALARY)}.`);
   }
   p.position = (((from + steps) % C.BOARD_SIZE) + C.BOARD_SIZE) % C.BOARD_SIZE;
+  pushEvent(s, { kind: "move", playerId: p.id, from, to: p.position, mode: steps > 0 ? "forward" : "backward" });
 }
 
 function moveForwardTo(s: GameState, p: Player, to: number) {
-  if (to < p.position) {
+  const from = p.position;
+  if (to < from) {
     p.cash += C.GO_SALARY;
     log(s, `${p.name} passe par la case Départ et reçoit ${money(C.GO_SALARY)}.`);
   }
   p.position = to;
+  pushEvent(s, { kind: "move", playerId: p.id, from, to, mode: "forward" });
+}
+
+/** Déplacement direct, sans passer par Départ (à pied si c'est tout près). */
+function moveDirectTo(s: GameState, p: Player, to: number) {
+  const from = p.position;
+  const back = (from - to + C.BOARD_SIZE) % C.BOARD_SIZE;
+  p.position = to;
+  pushEvent(s, { kind: "move", playerId: p.id, from, to, mode: back > 0 && back <= 6 ? "backward" : "jump" });
 }
 
 function sendToJail(s: GameState, p: Player) {
+  if (p.position !== C.JAIL_POSITION) {
+    pushEvent(s, { kind: "move", playerId: p.id, from: p.position, to: C.JAIL_POSITION, mode: "jump" });
+  }
   p.position = C.JAIL_POSITION;
   p.inJail = true;
   p.jailTurns = 0;
@@ -545,8 +588,7 @@ function drawCard(s: GameState, deck: DeckName, ctx: EngineContext) {
   const cardId = s.decks[deck].shift()!;
   const card = CARDS[cardId];
   if (card.effect.kind !== "jailFree") s.decks[deck].push(cardId);
-  s.cardSeq += 1;
-  s.card = { seq: s.cardSeq, deck, cardId, playerId: p.id };
+  pushEvent(s, { kind: "card", playerId: p.id, deck, cardId });
   log(s, `${p.name} tire une carte ${DECK_LABEL[deck]} : « ${card.text} »`);
 
   const e = card.effect;
@@ -560,7 +602,7 @@ function drawCard(s: GameState, deck: DeckName, ctx: EngineContext) {
       resolveLanding(s, ctx);
       return;
     case "goBackTo":
-      p.position = e.to;
+      moveDirectTo(s, p, e.to);
       resolveLanding(s, ctx);
       return;
     case "gain":

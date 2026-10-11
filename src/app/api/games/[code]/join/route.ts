@@ -1,4 +1,4 @@
-import { playerNameSchema } from "@/game/actionSchema";
+import { playerNameSchema, tokenSchema } from "@/game/actionSchema";
 import { addPlayer } from "@/game/engine";
 import { requireUser } from "@/lib/server/auth";
 import { handle, HttpError, readJson } from "@/lib/server/http";
@@ -15,7 +15,8 @@ export async function POST(req: Request, ctx: RouteContext<"/api/games/[code]/jo
 
     const { row, state } = await mutateGame(code, (r) => {
       if (r.state.players.some((p) => p.id === userId)) return null;
-      return addPlayer(r.state, { id: userId, name: playerNameSchema.parse(body.name ?? "") });
+      const token = tokenSchema.safeParse(body.token).data;
+      return addPlayer(r.state, { id: userId, name: playerNameSchema.parse(body.name ?? ""), token });
     });
 
     const me = state.players.find((p) => p.id === userId);

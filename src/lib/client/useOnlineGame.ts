@@ -199,8 +199,8 @@ export function useOnlineGame(code: string) {
   );
 
   const join = useCallback(
-    async (name: string) => {
-      accept(await api.joinGame(code, name));
+    async (name: string, token?: string) => {
+      accept(await api.joinGame(code, name, token));
       setMember(true);
     },
     [code, accept],
